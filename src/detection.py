@@ -8,7 +8,7 @@ def detection(image_path): # Cette méthode découpe l'image en petits blocs et 
         image = image.convert("L") # On passe l'image en niveaux de gris
     image_np = np.array(image) # On transforme l'image en un tableau np pour pouvoir manipuler les pixels
     largeur,hauteur = image.size
-    taille_bloc = 4 # On choisit la taille des blocs
+    taille_bloc = 4 # On choisit la taille des blocs (taille_bloc x taille_bloc)
     blocs = [(x, y, image_np[y:y+taille_bloc, x:x+taille_bloc]) for y in range(0, hauteur, taille_bloc) for x in range(0, largeur, taille_bloc)] # On découpe en blocs carrés de taille taille_bloc
     blocs_suspects = set()
     moyenne_globale = image_np.mean() # On calcule la moyenne de l'image de base
