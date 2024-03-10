@@ -15,7 +15,6 @@ Pour exécuter ce projet, vous aurez besoin de Python et de `pip` installés sur
     python -m venv pixel_patrol_env
     ```
     Cette commande crée un nouvel environnement virtuel nommé `pixel_patrol_env` dans le répertoire courant.
-<br/>
 
 2. **Activer l'environnement virtuel** :
     - Sur Windows :
