@@ -12,16 +12,16 @@ class Application(ctk.CTk):
         self._set_appearance_mode("Dark")
 
         # Choisir une image
-        self.btn_choisir_image = ctk.CTkButton(self,text="Choisir une image",command=self.choisir_image)
-        self.btn_choisir_image.pack(padx=(0,0),pady=(0,0))
+        self.btn_choisir_image = ctk.CTkButton(self,text="Choisir une image",command=self.choisir_image,hover_color="darkgrey")
+        self.btn_choisir_image.pack(pady=(0, 0), padx=(0, 0))
 
         # Zone d'affichage de l'image
         self.canvas_image = ctk.CTkCanvas(self,width=600,height=400)
-        self.canvas_image.pack(padx=(0,0),pady=(0,0))
+        self.canvas_image.pack(pady=(0, 0), padx=(0, 0))
 
         # Bouton pour lancer la détection
-        self.btn_detection = ctk.CTkButton(self,text="Lancer la détection",command=self.detecter)
-        self.btn_detection.pack(padx=(0,0),pady=(0,0))
+        self.btn_detection = ctk.CTkButton(self,text="Lancer la détection",command=self.detecter,hover_color="darkgrey")
+        self.btn_detection.pack(pady=(0, 0), padx=(0, 0))
 
         self.image_path = None
 
