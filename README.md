@@ -1,18 +1,18 @@
 # Pixel Patrol - Détecteur de falsifications d'images
 
-## Projet étudiant reliant les UE HAI804I Analyse et traitement des images et HAI809I Codage et compression multimédia 
+## Projet étudiant reliant les UE HAI804I Analyse et traitement des images et HAI809I Codage et compression multimédia 
 
 Pixel Patrol est une solution Python de détection de falsifications dans des images, utilisant des technologies  d'analyse d'images pour identifier les modifications et manipulations d'images. Notre objectif est de fournir un outil fiable pour aider à maintenir l'intégrité et la véracité des contenus visuels.
 
 ## Installation
 
-Pour exécuter ce projet, vous aurez besoin de Python et de `pip` installés sur votre système. Il est recommandé d'utiliser un environnement virtuel pour gérer les dépendances.
+Pour exécuter ce projet, vous aurez besoin de Python 3 et de `pip` installés sur votre système. Il est recommandé d'utiliser un environnement virtuel pour gérer les dépendances.
 
 ### Configuration de l'environnement virtuel
 
 1. **Créer un environnement virtuel** :
     ```sh
-    python -m venv pixel_patrol_env
+    python3 -m venv pixel_patrol_env
     ```
     Cette commande crée un nouvel environnement virtuel nommé `pixel_patrol_env` dans le répertoire courant.
 
@@ -37,6 +37,7 @@ pip install -r requirements.txt
 
 ## Utilisation
 
+**Lancer le programme** :
 ```sh
 python3 src/app.py
 ```
