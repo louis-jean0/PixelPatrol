@@ -1,7 +1,12 @@
-from PIL import Image
+from PIL import Image,ImageDraw
 import numpy as np
 import math
+import cv2
+from sklearn.cluster import KMeans
+from skimage.segmentation import slic
+from skimage import io
 
+"""
 def detection(image_path): # Cette méthode découpe l'image en petits blocs et compare leurs caracteristiques (moyenne, écart-type) pour déterminer si il y a eu copy-move
     image = Image.open(image_path)
     if(image.mode != "L"):
@@ -36,6 +41,7 @@ def detection(image_path): # Cette méthode découpe l'image en petits blocs et 
     image_reconstruite_path = "test.pgm" # On choisit le chemin de l'image reconstruite
     image_reconstruite.save(image_reconstruite_path) # On enregistre l'image reconstruite
     return image_reconstruite_path # On retourne le chemin de l'image reconstruite (car c'est comme cela que j'ai écrit l'application qui va l'utiliser)
+"""
 
 def kmeans(caracteristiques, k, max_iters=10):
     np.random.seed(42) # Pour pouvoir reproduire les résultats (s'affranchir du random pour les premiers tests)
@@ -94,44 +100,36 @@ def dct_2d(image):
             dct[u,v] = alpha_u * alpha_v * sum_uv
     return dct
 
-def dct_couleur_et_caracteristiques(image):
-    caracteristiques_dct = []
-    for canal in range(3):
-        dct_canal = dct_2d(image[:,:,canal])
-        dct_selection = dct_canal[:8,:8].flatten()
-        if dct_selection[0] != 0:
-            dct_selection = dct_selection / dct_selection[0]
-        caracteristiques_dct.extend(dct_selection)
-    return caracteristiques_dct
-
-def detection_kmeans(image_path, k=5):
+def detection_kmeans(image_path, taille_bloc=16, k=5):
     image = Image.open(image_path)
     if image.mode != "RGB":
         image = image.convert("RGB")
+    image_ndg = image.convert("L")
+    image_np_ndg = np.array(image_ndg)
     image_np = np.array(image)
     largeur, hauteur = image.size
-    taille_bloc = 16
     caracteristiques = []
     blocs_positions = []
     for y in range(0, hauteur, taille_bloc):
         for x in range(0, largeur, taille_bloc):
-            bloc = image_np[y:y+taille_bloc, x:x+taille_bloc, :]
+            bloc = image_np[y:y+taille_bloc,x:x+taille_bloc,:]
+            bloc_ndg = image_np_ndg[y:y+taille_bloc,x:x+taille_bloc]
             moyennes = [bloc[:, :, i].mean() for i in range(3)]  # Moyenne pour R, G, B
             ecarts_types = [bloc[:, :, i].std() for i in range(3)]  # Écart-type pour R, G, B
             histogrammes = np.concatenate(histogramme_couleur(bloc))  # Histogrammes pour R, G, B
             lbp = lbp_couleur(bloc)
-            histogrammes_lbp = np.concatenate([histogramme_ndg(lbp[:,:,i]) for i in range(3)])
-            #dct = dct_couleur_et_caracteristiques(bloc)
-            vecteur_caracteristiques = np.concatenate((moyennes, ecarts_types,histogrammes,histogrammes_lbp))#,#dct))
+            histogrammes_lbp = np.concatenate(histogramme_couleur(lbp))
+            #dct = dct_2d(bloc_ndg)
+            #dct = dct[:8, :8].flatten()
+            vecteur_caracteristiques = np.concatenate((moyennes,ecarts_types,histogrammes,histogrammes_lbp))#,dct))
             caracteristiques.append(vecteur_caracteristiques)
             blocs_positions.append((x, y))
     caracteristiques = np.array(caracteristiques)
     labels = kmeans(caracteristiques, k, 100)
     _, counts = np.unique(labels, return_counts=True)
     cluster_suspect = np.argmin(counts)
-    blocs_suspects = np.where(labels == cluster_suspect)[0]
+    print(cluster_suspect)
     blocs_confirmes = []
-    
     for index, (x, y) in enumerate(blocs_positions):
         if labels[index] != cluster_suspect:
             continue
@@ -144,7 +142,6 @@ def detection_kmeans(image_path, k=5):
                 voisin_index = next((i for i, pos in enumerate(blocs_positions) if pos == (voisin_x, voisin_y)), None)
                 if voisin_index is not None and labels[voisin_index] == cluster_suspect:
                     compteur_voisins += 1
-        
         if compteur_voisins >= 2:
             blocs_confirmes.append(index)
     image_reconstruite = Image.new("RGB", (largeur, hauteur))
@@ -154,8 +151,16 @@ def detection_kmeans(image_path, k=5):
             bloc = np.zeros_like(bloc)
         bloc_image = Image.fromarray(bloc, "RGB")
         image_reconstruite.paste(bloc_image, (x, y))
-
     image_reconstruite_path = "test_color.png"
     image_reconstruite.save(image_reconstruite_path)
-
     return image_reconstruite_path
+
+def sift(image_path):
+    image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+    sift = cv2.SIFT_create()
+    keypoints,descriptors = sift.detectAndCompute(image, None)
+    image_keypoints = cv2.drawKeypoints(image,keypoints,None,flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+    image_keypoints = cv2.cvtColor(image_keypoints,cv2.COLOR_BGR2RGB)
+    image_keypoints_path = "image_keypoints.png"
+    cv2.imwrite(image_keypoints_path,image_keypoints)
+    return image_keypoints_path
