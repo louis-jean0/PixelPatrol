@@ -43,7 +43,8 @@ class Application(ctk.CTk):
 
     # Choisir une image parmi l'explorateur de fichiers
     def choisir_image(self):
-        self.image_path = filedialog.askopenfilename()
+        dossier_data = os.path.join(os.path.dirname(__file__),"../data")
+        self.image_path = filedialog.askopenfilename(initialdir=dossier_data)
         self.afficher_image(self.image_path, self.canvas_image)
 
     # Afficher une image sur un canvas
