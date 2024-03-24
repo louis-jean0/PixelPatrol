@@ -1,10 +1,6 @@
-from PIL import Image,ImageDraw
+from PIL import Image
 import numpy as np
-import math
 import cv2
-from sklearn.cluster import KMeans
-from skimage.segmentation import slic
-from skimage import io
 
 """
 def detection(image_path): # Cette méthode découpe l'image en petits blocs et compare leurs caracteristiques (moyenne, écart-type) pour déterminer si il y a eu copy-move
@@ -155,12 +151,70 @@ def detection_kmeans(image_path, taille_bloc=16, k=5):
     image_reconstruite.save(image_reconstruite_path)
     return image_reconstruite_path
 
-def sift(image_path):
-    image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
-    sift = cv2.SIFT_create()
-    keypoints,descriptors = sift.detectAndCompute(image, None)
-    image_keypoints = cv2.drawKeypoints(image,keypoints,None,flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-    image_keypoints = cv2.cvtColor(image_keypoints,cv2.COLOR_BGR2RGB)
-    image_keypoints_path = "image_keypoints.png"
-    cv2.imwrite(image_keypoints_path,image_keypoints)
-    return image_keypoints_path
+def copy_move_detection(image_chemin):
+    # Chargement de l'image et conversion en niveaux de gris
+    image_originale = cv2.imread(image_chemin)
+    image_niveaux_de_gris = cv2.cvtColor(image_originale, cv2.COLOR_BGR2GRAY)
+
+    # Extraction des points clés et descripteurs avec SIFT
+    detecteur_sift = cv2.SIFT_create()
+
+    (points_cles, descripteurs) = detecteur_sift.detectAndCompute(image_niveaux_de_gris, None)
+
+    descripteurs = np.asarray(descripteurs)
+    produits_points = np.dot(descripteurs, descripteurs.transpose())
+    normes = np.tile(np.sqrt(np.diag(produits_points)), (descripteurs.shape[1], 1)).transpose()
+    descripteurs_normalises = descripteurs / (normes + np.finfo(float).eps)
+    produits_points = np.dot(descripteurs_normalises, descripteurs_normalises.transpose())
+
+    points_apparies_1 = []
+    points_apparies_2 = []
+
+    statut_points_apparies = [False] * len(points_cles)
+
+    # Recherche de correspondances pour chaque point clé
+    for i in range(len(points_cles)):
+        produits_points[produits_points > 1] = 1
+        angles = np.sort(np.arccos(produits_points[i, :]))
+        indices_tries = np.argsort(np.arccos(produits_points[i, :]))
+
+        # Évaluation des conditions pour une correspondance valide
+        if angles[0] < 0.01 and \
+           angles[1] / (angles[2] + np.finfo(float).eps) < 0.55 and \
+           not statut_points_apparies[indices_tries[1]]:
+           
+            # Mise à jour du statut de correspondance
+            statut_points_apparies[indices_tries[1]] = True
+            statut_points_apparies[i] = True
+
+            # Obtention des coordonnées des points clés et évaluation de leur distance
+            point_actuel = points_cles[i].pt
+            meilleur_correspondant = points_cles[indices_tries[1]].pt
+            distance_entre_points = np.linalg.norm(np.array(point_actuel) - np.array(meilleur_correspondant))
+            
+            if distance_entre_points > 10:
+                points_apparies_1.append(point_actuel)
+                points_apparies_2.append(meilleur_correspondant)
+
+    # Dessin des correspondances sur une copie de l'image
+    image_correspondances = np.copy(image_niveaux_de_gris)
+    image_correspondances = cv2.cvtColor(image_correspondances, cv2.COLOR_GRAY2BGR)
+        
+    for i in range(len(points_apparies_1)):
+        cv2.circle(image_correspondances, (int(points_apparies_1[i][0]), int(points_apparies_1[i][1])), 5, (255, 0, 0), 1)
+        cv2.circle(image_correspondances, (int(points_apparies_2[i][0]), int(points_apparies_2[i][1])), 5, (0, 255, 0), 1)
+        cv2.line(image_correspondances, (int(points_apparies_1[i][0]), int(points_apparies_1[i][1])), (int(points_apparies_2[i][0]), int(points_apparies_2[i][1])), (0, 0, 255), 1)
+    
+    image_correspondances_path = "image_correspondance.png"
+    cv2.imwrite(image_correspondances_path, image_correspondances)
+
+    # Création des masques à partir des enveloppes convexes des points appariés
+    image_masque = np.copy(image_niveaux_de_gris)
+    enveloppe_1 = cv2.convexHull(np.array(points_apparies_1, dtype=np.float32)).astype(np.int32)
+    enveloppe_2 = cv2.convexHull(np.array(points_apparies_2, dtype=np.float32)).astype(np.int32)
+    cv2.polylines(image_masque, [enveloppe_1.reshape((-1, 1, 2))], True, (0, 255, 0), 2)
+    cv2.polylines(image_masque, [enveloppe_2.reshape((-1, 1, 2))], True, (0, 255, 0), 2)
+    image_masque_path = "image_masque.png"
+    cv2.imwrite(image_masque_path,image_masque)
+
+    return image_correspondances_path,image_masque_path
