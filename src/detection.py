@@ -1,4 +1,5 @@
 from PIL import Image
+from scipy.fftpack import dct,idct
 import numpy as np
 import cv2
 
@@ -96,6 +97,12 @@ def dct_2d(image):
             dct[u,v] = alpha_u * alpha_v * sum_uv
     return dct
 
+def dct2d(bloc):
+    return dct(dct(bloc.T, norm='ortho').T, norm='ortho')
+
+def idct2d(bloc):
+    return idct(idct(bloc.T, norm='ortho').T, norm='ortho')
+
 def detection_kmeans(image_path, taille_bloc=16, k=5):
     image = Image.open(image_path)
     if image.mode != "RGB":
@@ -151,15 +158,15 @@ def detection_kmeans(image_path, taille_bloc=16, k=5):
     image_reconstruite.save(image_reconstruite_path)
     return image_reconstruite_path
 
-def copy_move_detection(image_chemin):
+def copy_move_detection(image_path):
     # Chargement de l'image et conversion en niveaux de gris
-    image_originale = cv2.imread(image_chemin)
-    image_niveaux_de_gris = cv2.cvtColor(image_originale, cv2.COLOR_BGR2GRAY)
+    image = cv2.imread(image_path)
+    image_ndg = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # Extraction des points clés et descripteurs avec SIFT
     detecteur_sift = cv2.SIFT_create()
 
-    (points_cles, descripteurs) = detecteur_sift.detectAndCompute(image_niveaux_de_gris, None)
+    (points_cles, descripteurs) = detecteur_sift.detectAndCompute(image_ndg, None)
 
     descripteurs = np.asarray(descripteurs)
     produits_points = np.dot(descripteurs, descripteurs.transpose())
@@ -197,7 +204,7 @@ def copy_move_detection(image_chemin):
                 points_apparies_2.append(meilleur_correspondant)
 
     # Dessin des correspondances sur une copie de l'image
-    image_correspondances = np.copy(image_niveaux_de_gris)
+    image_correspondances = np.copy(image_ndg)
     image_correspondances = cv2.cvtColor(image_correspondances, cv2.COLOR_GRAY2BGR)
         
     for i in range(len(points_apparies_1)):
@@ -209,7 +216,7 @@ def copy_move_detection(image_chemin):
     cv2.imwrite(image_correspondances_path, image_correspondances)
 
     # Création des masques à partir des enveloppes convexes des points appariés
-    image_masque = np.copy(image_niveaux_de_gris)
+    image_masque = np.copy(image_ndg)
     enveloppe_1 = cv2.convexHull(np.array(points_apparies_1, dtype=np.float32)).astype(np.int32)
     enveloppe_2 = cv2.convexHull(np.array(points_apparies_2, dtype=np.float32)).astype(np.int32)
     cv2.polylines(image_masque, [enveloppe_1.reshape((-1, 1, 2))], True, (0, 255, 0), 2)
@@ -218,3 +225,29 @@ def copy_move_detection(image_chemin):
     cv2.imwrite(image_masque_path,image_masque)
 
     return image_correspondances_path,image_masque_path
+
+def detection_dct(image_path, taille_bloc=16, seuil=100):
+    image = Image.open(image_path)
+    if image.mode != "RGB":
+        image = image.convert("RGB")
+    image_ndg = image.convert("L")
+    image_np_ndg = np.array(image_ndg)
+    image_np = np.array(image)
+    largeur, hauteur = image.size
+    image_out = np.zeros_like(image_np)
+    for y in range(0, hauteur, taille_bloc):
+        for x in range(0, largeur, taille_bloc):
+            bloc_ndg = image_np_ndg[y:y+taille_bloc,x:x+taille_bloc]
+            dct_bloc = dct2d(bloc_ndg)
+            dct_bloc[:taille_bloc//2,:taille_bloc//2] = 0
+            if np.sum(np.abs(dct_bloc) > seuil) > (taille_bloc**2) / 2:
+                # Marquer le centre du bloc sur l'image originale
+                cy, cx = y + taille_bloc // 2, x + taille_bloc // 2
+                image_np[max(cy-1, 0):min(cy+2, hauteur), max(cx-1, 0):min(cx+2, largeur)] = [255, 0, 0]
+    image_out = Image.fromarray(np.uint8(image_np))
+    image_out_path = "testdct.png"
+    image_out.save(image_out_path)
+    return image_out_path
+
+if __name__ == "__main__":
+    detection_dct("../data/splicing/images/im1_edit2.jpg")
