@@ -1,8 +1,8 @@
 from PIL import Image
-from scipy.fftpack import dct,idct
 import numpy as np
 import cv2
-
+from skimage.measure import ransac
+from skimage.transform import AffineTransform
 """
 def detection(image_path): # Cette méthode découpe l'image en petits blocs et compare leurs caracteristiques (moyenne, écart-type) pour déterminer si il y a eu copy-move
     image = Image.open(image_path)
@@ -96,12 +96,6 @@ def dct_2d(image):
             alpha_v = np.sqrt(1/N) if v == 0 else np.sqrt(2/N)
             dct[u,v] = alpha_u * alpha_v * sum_uv
     return dct
-
-def dct2d(bloc):
-    return dct(dct(bloc.T, norm='ortho').T, norm='ortho')
-
-def idct2d(bloc):
-    return idct(idct(bloc.T, norm='ortho').T, norm='ortho')
 
 def detection_kmeans(image_path, taille_bloc=16, k=5):
     image = Image.open(image_path)
@@ -215,17 +209,40 @@ def copy_move_detection(image_path):
     image_correspondances_path = "image_correspondance.png"
     cv2.imwrite(image_correspondances_path, image_correspondances)
 
-    # Création des masques à partir des enveloppes convexes des points appariés
-    image_masque = np.copy(image_ndg)
-    enveloppe_1 = cv2.convexHull(np.array(points_apparies_1, dtype=np.float32)).astype(np.int32)
-    enveloppe_2 = cv2.convexHull(np.array(points_apparies_2, dtype=np.float32)).astype(np.int32)
-    cv2.polylines(image_masque, [enveloppe_1.reshape((-1, 1, 2))], True, (0, 255, 0), 2)
-    cv2.polylines(image_masque, [enveloppe_2.reshape((-1, 1, 2))], True, (0, 255, 0), 2)
+    pts_src = np.float32(points_apparies_1)
+    pts_dst = np.float32(points_apparies_2)
+    
+    # Utilisation de RANSAC pour estimer la transformation
+    _, inliers = ransac((pts_src, pts_dst), AffineTransform, min_samples=3, residual_threshold=2, max_trials=1000)
+    
+    # Création d'un masque noir de la même taille que l'image originale
+    masque_falsifications = np.zeros_like(image)
+    
+    # Pour chaque paire d'inliers, copier les zones de l'image originale vers le masque noir
+    taille_rect = 10  # Taille du demi-côté du rectangle
+    for i in range(len(pts_src)):
+        if inliers[i]: 
+            pt_src = pts_src[i]
+            pt_dst = pts_dst[i]
+            
+            # Déterminer les coordonnées du rectangle pour la source et la destination
+            x1_src, y1_src = int(max(pt_src[0] - taille_rect, 0)), int(max(pt_src[1] - taille_rect, 0))
+            x2_src, y2_src = int(min(pt_src[0] + taille_rect, image.shape[1])), int(min(pt_src[1] + taille_rect, image.shape[0]))
+            
+            x1_dst, y1_dst = int(max(pt_dst[0] - taille_rect, 0)), int(max(pt_dst[1] - taille_rect, 0))
+            x2_dst, y2_dst = int(min(pt_dst[0] + taille_rect, image.shape[1])), int(min(pt_dst[1] + taille_rect, image.shape[0]))
+            
+            # Copier les régions de l'image originale vers le masque
+            masque_falsifications[y1_src:y2_src, x1_src:x2_src] = image[y1_src:y2_src, x1_src:x2_src]
+            masque_falsifications[y1_dst:y2_dst, x1_dst:x2_dst] = image[y1_dst:y2_dst, x1_dst:x2_dst]
+    
+    # Sauvegarde du masque
     image_masque_path = "image_masque.png"
-    cv2.imwrite(image_masque_path,image_masque)
+    cv2.imwrite(image_masque_path,masque_falsifications)
 
     return image_correspondances_path,image_masque_path
 
+"""
 def detection_dct(image_path, taille_bloc=16, seuil=100):
     image = Image.open(image_path)
     if image.mode != "RGB":
@@ -241,13 +258,50 @@ def detection_dct(image_path, taille_bloc=16, seuil=100):
             dct_bloc = dct2d(bloc_ndg)
             dct_bloc[:taille_bloc//2,:taille_bloc//2] = 0
             if np.sum(np.abs(dct_bloc) > seuil) > (taille_bloc**2) / 2:
-                # Marquer le centre du bloc sur l'image originale
                 cy, cx = y + taille_bloc // 2, x + taille_bloc // 2
                 image_np[max(cy-1, 0):min(cy+2, hauteur), max(cx-1, 0):min(cx+2, largeur)] = [255, 0, 0]
     image_out = Image.fromarray(np.uint8(image_np))
     image_out_path = "testdct.png"
     image_out.save(image_out_path)
     return image_out_path
+"""
+
+def dct2d(block):
+    return cv2.dct(np.float32(block))
+
+def detection_dct(image_path, taille_bloc=8, seuil=2.0):
+    image = Image.open(image_path).convert('RGB')
+    image_np = np.array(image)
+    img_ycrcb = cv2.cvtColor(image_np, cv2.COLOR_RGB2YCrCb)
+    
+    img_detection = np.zeros_like(img_ycrcb[:, :, 0], dtype=np.float32)
+    
+    hauteur, largeur, _ = img_ycrcb.shape
+    nb_bloc_hauteur = hauteur // taille_bloc
+    nb_bloc_largeur = largeur // taille_bloc
+
+    for i in range(nb_bloc_hauteur):
+        for j in range(nb_bloc_largeur):
+            bloc = img_ycrcb[i*taille_bloc:(i+1)*taille_bloc, j*taille_bloc:(j+1)*taille_bloc, 0]
+
+            dct_result = dct2d(bloc)
+
+            dct_haute_freq = dct_result[4:, 4:] # On filtre les hautes fréquences
+
+            # Ajuster la taille pour correspondre aux blocs
+            resize = cv2.resize(np.abs(dct_haute_freq), (taille_bloc, taille_bloc))
+
+            img_detection[i*taille_bloc:(i+1)*taille_bloc, j*taille_bloc:(j+1)*taille_bloc] += resize
+
+    img_detection = img_detection > seuil
+    
+    masque = image_np.copy()
+    masque[img_detection] = [255, 0, 0]
+    
+    masque_path = "testdct.png"
+    Image.fromarray(masque).save(masque_path)
+    
+    return masque_path
 
 if __name__ == "__main__":
-    detection_dct("../data/splicing/images/im1_edit2.jpg")
+    detection_dct("../data/splicing/images/im37_edit1.jpg")
