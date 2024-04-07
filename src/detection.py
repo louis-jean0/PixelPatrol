@@ -3,6 +3,202 @@ import numpy as np
 import cv2
 from skimage.measure import ransac
 from skimage.transform import AffineTransform
+from skimage.feature import local_binary_pattern
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
+from scipy.spatial.distance import cdist
+import matplotlib.pyplot as plt
+
+# Détection de falsification par copy-move
+def copy_move_detection(image_path):
+    # Chargement de l'image et conversion en niveaux de gris
+    image = cv2.imread(image_path)
+    image_ndg = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    # Extraction des points clés et descripteurs avec SIFT
+    detecteur_sift = cv2.SIFT_create()
+
+    (points_cles, descripteurs) = detecteur_sift.detectAndCompute(image_ndg, None)
+
+    descripteurs = np.asarray(descripteurs)
+    produits_points = np.dot(descripteurs, descripteurs.transpose())
+    normes = np.tile(np.sqrt(np.diag(produits_points)), (descripteurs.shape[1], 1)).transpose()
+    descripteurs_normalises = descripteurs / (normes + np.finfo(float).eps)
+    produits_points = np.dot(descripteurs_normalises, descripteurs_normalises.transpose())
+
+    points_apparies_1 = []
+    points_apparies_2 = []
+
+    statut_points_apparies = [False] * len(points_cles)
+
+    # Recherche de correspondances pour chaque point clé
+    for i in range(len(points_cles)):
+        produits_points[produits_points > 1] = 1
+        angles = np.sort(np.arccos(produits_points[i, :]))
+        indices_tries = np.argsort(np.arccos(produits_points[i, :]))
+
+        # Évaluation des conditions pour une correspondance valide
+        if angles[0] < 0.01 and \
+           angles[1] / (angles[2] + np.finfo(float).eps) < 0.55 and \
+           not statut_points_apparies[indices_tries[1]]:
+           
+            # Mise à jour du statut de correspondance
+            statut_points_apparies[indices_tries[1]] = True
+            statut_points_apparies[i] = True
+
+            # Obtention des coordonnées des points clés et évaluation de leur distance
+            point_actuel = points_cles[i].pt
+            meilleur_correspondant = points_cles[indices_tries[1]].pt
+            distance_entre_points = np.linalg.norm(np.array(point_actuel) - np.array(meilleur_correspondant))
+            
+            if distance_entre_points > 10:
+                points_apparies_1.append(point_actuel)
+                points_apparies_2.append(meilleur_correspondant)
+
+    # Dessin des correspondances sur une copie de l'image
+    image_correspondances = np.copy(image_ndg)
+    image_correspondances = cv2.cvtColor(image_correspondances, cv2.COLOR_GRAY2BGR)
+        
+    for i in range(len(points_apparies_1)):
+        cv2.circle(image_correspondances, (int(points_apparies_1[i][0]), int(points_apparies_1[i][1])), 5, (255, 0, 0), 1)
+        cv2.circle(image_correspondances, (int(points_apparies_2[i][0]), int(points_apparies_2[i][1])), 5, (0, 255, 0), 1)
+        cv2.line(image_correspondances, (int(points_apparies_1[i][0]), int(points_apparies_1[i][1])), (int(points_apparies_2[i][0]), int(points_apparies_2[i][1])), (0, 0, 255), 1)
+    
+    image_correspondances_path = "image_correspondance.png"
+    cv2.imwrite(image_correspondances_path, image_correspondances)
+
+    pts_src = np.float32(points_apparies_1)
+    pts_dst = np.float32(points_apparies_2)
+    
+    # Utilisation de RANSAC pour estimer la transformation
+    _, inliers = ransac((pts_src, pts_dst), AffineTransform, min_samples=3, residual_threshold=2, max_trials=1000)
+    
+    # Création d'un masque noir de la même taille que l'image originale
+    masque_falsifications = np.zeros_like(image)
+    
+    # Pour chaque paire d'inliers, copier les zones de l'image originale vers le masque noir
+    taille_rect = 10  # Taille du demi-côté du rectangle
+    for i in range(len(pts_src)):
+        if inliers[i]: 
+            pt_src = pts_src[i]
+            pt_dst = pts_dst[i]
+            
+            # Déterminer les coordonnées du rectangle pour la source et la destination
+            x1_src, y1_src = int(max(pt_src[0] - taille_rect, 0)), int(max(pt_src[1] - taille_rect, 0))
+            x2_src, y2_src = int(min(pt_src[0] + taille_rect, image.shape[1])), int(min(pt_src[1] + taille_rect, image.shape[0]))
+            
+            x1_dst, y1_dst = int(max(pt_dst[0] - taille_rect, 0)), int(max(pt_dst[1] - taille_rect, 0))
+            x2_dst, y2_dst = int(min(pt_dst[0] + taille_rect, image.shape[1])), int(min(pt_dst[1] + taille_rect, image.shape[0]))
+            
+            # Copier les régions de l'image originale vers le masque
+            masque_falsifications[y1_src:y2_src, x1_src:x2_src] = image[y1_src:y2_src, x1_src:x2_src]
+            masque_falsifications[y1_dst:y2_dst, x1_dst:x2_dst] = image[y1_dst:y2_dst, x1_dst:x2_dst]
+    
+    # Sauvegarde du masque
+    image_masque_path = "image_masque.png"
+    cv2.imwrite(image_masque_path,masque_falsifications)
+
+    return image_correspondances_path,image_masque_path
+
+def dct2d(block):
+    return cv2.dct(np.float32(block))
+
+# Détection de falsification par splicing/removal
+def detection_dct(image_path, taille_bloc=8, seuil=0.6):
+    image = Image.open(image_path).convert('RGB')
+    image_np = np.array(image)
+    img_ycrcb = cv2.cvtColor(image_np, cv2.COLOR_RGB2YCrCb)
+    
+    img_detection = np.zeros_like(img_ycrcb[:, :, 0], dtype=np.float32)
+    
+    hauteur, largeur, _ = img_ycrcb.shape
+    nb_bloc_hauteur = hauteur // taille_bloc
+    nb_bloc_largeur = largeur // taille_bloc
+
+    for i in range(nb_bloc_hauteur):
+        for j in range(nb_bloc_largeur):
+            bloc = img_ycrcb[i*taille_bloc:(i+1)*taille_bloc, j*taille_bloc:(j+1)*taille_bloc, 0]
+
+            dct_result = dct2d(bloc)
+
+            dct_haute_freq = dct_result[4:, 4:] # On filtre les hautes fréquences
+
+            # Ajuster la taille pour correspondre aux blocs
+            resize = cv2.resize(np.abs(dct_haute_freq), (taille_bloc, taille_bloc))
+
+            img_detection[i*taille_bloc:(i+1)*taille_bloc, j*taille_bloc:(j+1)*taille_bloc] += resize
+
+    img_detection = img_detection > seuil
+    
+    masque = image_np.copy()
+    masque[img_detection] = [255, 0, 0]
+    
+    masque_path = "testdct.png"
+    Image.fromarray(masque).save(masque_path)
+    
+    return masque_path
+
+def tracer_histogramme(caracteristiques, titre='Histogramme des caracteristiques', nb_bins=50):
+    plt.figure(figsize=(10, 6))
+    plt.hist(caracteristiques, bins=nb_bins, color='blue', alpha=0.7)
+    plt.title(titre)
+    plt.xlabel('Valeur des caracteristiques')
+    plt.ylabel('Fréquence')
+    plt.show()
+
+def marquer_falsifications(image_path, suspects, taille_bloc, pas):
+    image = cv2.imread(image_path)
+    hauteur, largeur, _ = image.shape
+    
+    for idx, suspect in enumerate(suspects):
+        if suspect:  # Si le bloc est marqué comme suspect
+            i = idx * pas // largeur * taille_bloc
+            j = (idx * pas) % largeur
+            cv2.rectangle(image, (j, i), (j + taille_bloc, i + taille_bloc), (0, 0, 255), 2)
+    
+    cv2.imwrite("sus.png", image)
+
+def extraction_caracteristiques(image_path, taille_bloc=32, pas=16, n_points=8, rayon=1):
+    image = cv2.imread(image_path)
+    ycbcr_image = cv2.cvtColor(image,cv2.COLOR_BGR2YCR_CB)
+    cr_cb = ycbcr_image[:,:,1:]
+    hauteur, largeur, _ = cr_cb.shape
+    blocs = []
+    for i in range(0, hauteur - taille_bloc, pas):
+        for j in range(0, largeur - taille_bloc, pas):
+            blocs.append(cr_cb[i:i+taille_bloc,j:j+taille_bloc])
+    blocs = np.array(blocs)
+    n_blocs, _, _, _ = blocs.shape
+    cr = np.zeros((n_blocs,taille_bloc,taille_bloc))
+    cb = np.zeros((n_blocs,taille_bloc,taille_bloc))
+    for id, bloc in enumerate(blocs):
+        lbp_cr = local_binary_pattern(bloc[:,:,0], n_points, rayon)
+        lbp_cr = np.float32(lbp_cr)
+        cr[id] = cv2.dct(lbp_cr)
+        lbp_cb = local_binary_pattern(bloc[:,:,1], n_points, rayon)
+        lbp_cb = np.float32(lbp_cb)
+        cr[id] = cv2.dct(lbp_cb)
+    cr = np.std(cr, axis=0).flatten()
+    cb = np.std(cb, axis=0).flatten()
+    caracteristiques = np.concatenate([cr,cb], axis=0)
+    tracer_histogramme(caracteristiques)
+    scaler = StandardScaler()
+    caracteristiques = caracteristiques.reshape(-1,1)
+    caracteristiques_norme = scaler.fit_transform(caracteristiques)
+    kmeans = KMeans(n_clusters=2,random_state=0).fit(caracteristiques_norme)
+    labels = kmeans.labels_
+    distances = cdist(caracteristiques_norme,kmeans.cluster_centers_,"euclidean")
+    min_distances = np.min(distances,axis=1)
+    seuil = np.percentile(min_distances,95)
+    print(seuil)
+    suspects = min_distances > seuil
+    marquer_falsifications(image_path,suspects,taille_bloc,pas)
+
+if __name__ == "__main__":
+    caracteristiques = extraction_caracteristiques("../data/splicing/images/im2_edit1.jpg")
+
+# Ancien code, peut-être encore utile
+
 """
 def detection(image_path): # Cette méthode découpe l'image en petits blocs et compare leurs caracteristiques (moyenne, écart-type) pour déterminer si il y a eu copy-move
     image = Image.open(image_path)
@@ -38,7 +234,6 @@ def detection(image_path): # Cette méthode découpe l'image en petits blocs et 
     image_reconstruite_path = "test.pgm" # On choisit le chemin de l'image reconstruite
     image_reconstruite.save(image_reconstruite_path) # On enregistre l'image reconstruite
     return image_reconstruite_path # On retourne le chemin de l'image reconstruite (car c'est comme cela que j'ai écrit l'application qui va l'utiliser)
-"""
 
 def kmeans(caracteristiques, k, max_iters=10):
     np.random.seed(42) # Pour pouvoir reproduire les résultats (s'affranchir du random pour les premiers tests)
@@ -151,157 +346,4 @@ def detection_kmeans(image_path, taille_bloc=16, k=5):
     image_reconstruite_path = "test_color.png"
     image_reconstruite.save(image_reconstruite_path)
     return image_reconstruite_path
-
-def copy_move_detection(image_path):
-    # Chargement de l'image et conversion en niveaux de gris
-    image = cv2.imread(image_path)
-    image_ndg = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-    # Extraction des points clés et descripteurs avec SIFT
-    detecteur_sift = cv2.SIFT_create()
-
-    (points_cles, descripteurs) = detecteur_sift.detectAndCompute(image_ndg, None)
-
-    descripteurs = np.asarray(descripteurs)
-    produits_points = np.dot(descripteurs, descripteurs.transpose())
-    normes = np.tile(np.sqrt(np.diag(produits_points)), (descripteurs.shape[1], 1)).transpose()
-    descripteurs_normalises = descripteurs / (normes + np.finfo(float).eps)
-    produits_points = np.dot(descripteurs_normalises, descripteurs_normalises.transpose())
-
-    points_apparies_1 = []
-    points_apparies_2 = []
-
-    statut_points_apparies = [False] * len(points_cles)
-
-    # Recherche de correspondances pour chaque point clé
-    for i in range(len(points_cles)):
-        produits_points[produits_points > 1] = 1
-        angles = np.sort(np.arccos(produits_points[i, :]))
-        indices_tries = np.argsort(np.arccos(produits_points[i, :]))
-
-        # Évaluation des conditions pour une correspondance valide
-        if angles[0] < 0.01 and \
-           angles[1] / (angles[2] + np.finfo(float).eps) < 0.55 and \
-           not statut_points_apparies[indices_tries[1]]:
-           
-            # Mise à jour du statut de correspondance
-            statut_points_apparies[indices_tries[1]] = True
-            statut_points_apparies[i] = True
-
-            # Obtention des coordonnées des points clés et évaluation de leur distance
-            point_actuel = points_cles[i].pt
-            meilleur_correspondant = points_cles[indices_tries[1]].pt
-            distance_entre_points = np.linalg.norm(np.array(point_actuel) - np.array(meilleur_correspondant))
-            
-            if distance_entre_points > 10:
-                points_apparies_1.append(point_actuel)
-                points_apparies_2.append(meilleur_correspondant)
-
-    # Dessin des correspondances sur une copie de l'image
-    image_correspondances = np.copy(image_ndg)
-    image_correspondances = cv2.cvtColor(image_correspondances, cv2.COLOR_GRAY2BGR)
-        
-    for i in range(len(points_apparies_1)):
-        cv2.circle(image_correspondances, (int(points_apparies_1[i][0]), int(points_apparies_1[i][1])), 5, (255, 0, 0), 1)
-        cv2.circle(image_correspondances, (int(points_apparies_2[i][0]), int(points_apparies_2[i][1])), 5, (0, 255, 0), 1)
-        cv2.line(image_correspondances, (int(points_apparies_1[i][0]), int(points_apparies_1[i][1])), (int(points_apparies_2[i][0]), int(points_apparies_2[i][1])), (0, 0, 255), 1)
-    
-    image_correspondances_path = "image_correspondance.png"
-    cv2.imwrite(image_correspondances_path, image_correspondances)
-
-    pts_src = np.float32(points_apparies_1)
-    pts_dst = np.float32(points_apparies_2)
-    
-    # Utilisation de RANSAC pour estimer la transformation
-    _, inliers = ransac((pts_src, pts_dst), AffineTransform, min_samples=3, residual_threshold=2, max_trials=1000)
-    
-    # Création d'un masque noir de la même taille que l'image originale
-    masque_falsifications = np.zeros_like(image)
-    
-    # Pour chaque paire d'inliers, copier les zones de l'image originale vers le masque noir
-    taille_rect = 10  # Taille du demi-côté du rectangle
-    for i in range(len(pts_src)):
-        if inliers[i]: 
-            pt_src = pts_src[i]
-            pt_dst = pts_dst[i]
-            
-            # Déterminer les coordonnées du rectangle pour la source et la destination
-            x1_src, y1_src = int(max(pt_src[0] - taille_rect, 0)), int(max(pt_src[1] - taille_rect, 0))
-            x2_src, y2_src = int(min(pt_src[0] + taille_rect, image.shape[1])), int(min(pt_src[1] + taille_rect, image.shape[0]))
-            
-            x1_dst, y1_dst = int(max(pt_dst[0] - taille_rect, 0)), int(max(pt_dst[1] - taille_rect, 0))
-            x2_dst, y2_dst = int(min(pt_dst[0] + taille_rect, image.shape[1])), int(min(pt_dst[1] + taille_rect, image.shape[0]))
-            
-            # Copier les régions de l'image originale vers le masque
-            masque_falsifications[y1_src:y2_src, x1_src:x2_src] = image[y1_src:y2_src, x1_src:x2_src]
-            masque_falsifications[y1_dst:y2_dst, x1_dst:x2_dst] = image[y1_dst:y2_dst, x1_dst:x2_dst]
-    
-    # Sauvegarde du masque
-    image_masque_path = "image_masque.png"
-    cv2.imwrite(image_masque_path,masque_falsifications)
-
-    return image_correspondances_path,image_masque_path
-
 """
-def detection_dct(image_path, taille_bloc=16, seuil=100):
-    image = Image.open(image_path)
-    if image.mode != "RGB":
-        image = image.convert("RGB")
-    image_ndg = image.convert("L")
-    image_np_ndg = np.array(image_ndg)
-    image_np = np.array(image)
-    largeur, hauteur = image.size
-    image_out = np.zeros_like(image_np)
-    for y in range(0, hauteur, taille_bloc):
-        for x in range(0, largeur, taille_bloc):
-            bloc_ndg = image_np_ndg[y:y+taille_bloc,x:x+taille_bloc]
-            dct_bloc = dct2d(bloc_ndg)
-            dct_bloc[:taille_bloc//2,:taille_bloc//2] = 0
-            if np.sum(np.abs(dct_bloc) > seuil) > (taille_bloc**2) / 2:
-                cy, cx = y + taille_bloc // 2, x + taille_bloc // 2
-                image_np[max(cy-1, 0):min(cy+2, hauteur), max(cx-1, 0):min(cx+2, largeur)] = [255, 0, 0]
-    image_out = Image.fromarray(np.uint8(image_np))
-    image_out_path = "testdct.png"
-    image_out.save(image_out_path)
-    return image_out_path
-"""
-
-def dct2d(block):
-    return cv2.dct(np.float32(block))
-
-def detection_dct(image_path, taille_bloc=8, seuil=2.0):
-    image = Image.open(image_path).convert('RGB')
-    image_np = np.array(image)
-    img_ycrcb = cv2.cvtColor(image_np, cv2.COLOR_RGB2YCrCb)
-    
-    img_detection = np.zeros_like(img_ycrcb[:, :, 0], dtype=np.float32)
-    
-    hauteur, largeur, _ = img_ycrcb.shape
-    nb_bloc_hauteur = hauteur // taille_bloc
-    nb_bloc_largeur = largeur // taille_bloc
-
-    for i in range(nb_bloc_hauteur):
-        for j in range(nb_bloc_largeur):
-            bloc = img_ycrcb[i*taille_bloc:(i+1)*taille_bloc, j*taille_bloc:(j+1)*taille_bloc, 0]
-
-            dct_result = dct2d(bloc)
-
-            dct_haute_freq = dct_result[4:, 4:] # On filtre les hautes fréquences
-
-            # Ajuster la taille pour correspondre aux blocs
-            resize = cv2.resize(np.abs(dct_haute_freq), (taille_bloc, taille_bloc))
-
-            img_detection[i*taille_bloc:(i+1)*taille_bloc, j*taille_bloc:(j+1)*taille_bloc] += resize
-
-    img_detection = img_detection > seuil
-    
-    masque = image_np.copy()
-    masque[img_detection] = [255, 0, 0]
-    
-    masque_path = "testdct.png"
-    Image.fromarray(masque).save(masque_path)
-    
-    return masque_path
-
-if __name__ == "__main__":
-    detection_dct("../data/splicing/images/im37_edit1.jpg")
