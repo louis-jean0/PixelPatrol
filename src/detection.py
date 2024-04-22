@@ -5,10 +5,8 @@ import cv2
 from skimage.measure import ransac
 from skimage.transform import AffineTransform
 from skimage.feature import local_binary_pattern
-from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
 from sklearn.metrics import recall_score, accuracy_score, f1_score, jaccard_score
-from sklearn.preprocessing import StandardScaler
 from joblib import load
 
 # Détection de falsification par copy-move
@@ -295,7 +293,30 @@ def classifier_dossier(dossier, model, scaler):
             continue
         caracteristiques = scaler.transform([caracteristiques])
         prediction = model.predict(caracteristiques)
-        if prediction[0] == 1:  # 1 signifie "falsifiée" dans votre cas
+        if prediction[0] == 1:
+            bonnes_reponses += 1
+    
+    return bonnes_reponses, total_images
+
+def classifier_dossier_entier(dossier, model, scaler):
+    noms_images = [os.path.join(dossier, f) for f in os.listdir(dossier) if os.path.isfile(os.path.join(dossier, f))]
+    total_images = len(noms_images)
+    bonnes_reponses = 0
+    
+    for image_path in noms_images:
+        vrai_label = 1 if os.path.basename(image_path).startswith("Sp") else 0
+        
+        caracteristiques = preparer_image(image_path)
+        
+        if caracteristiques is None or len(caracteristiques) == 0:
+            print(f"Impossible d'extraire les caractéristiques de l'image {image_path}")
+            continue
+        
+        caracteristiques = scaler.transform([caracteristiques])
+        prediction = model.predict(caracteristiques)[0]
+        
+        # Comparer la prédiction avec le vrai label
+        if prediction == vrai_label:
             bonnes_reponses += 1
     
     return bonnes_reponses, total_images
@@ -364,7 +385,7 @@ def calculer_metriques_moyennes_dct(taille_bloc):
     print(f"Total de paires image-masque trouvées : {len(dataset)}")
     #print(dataset)
     precisions, rappels, f1_scores, jaccards = [], [], [], []
-    for image_path, truth_mask_path in dataset[:5]:
+    for image_path, truth_mask_path in dataset:
         image_detection_path = detection_dct(image_path, taille_bloc)
         creer_masque_dct(image_detection_path)
         rappel, precision, f1, jaccard = calculer_metriques(truth_mask_path, "masque_dct.png")
@@ -385,14 +406,13 @@ if __name__ == "__main__":
     """
     svm = load("svm.joblib")
     scaler = load("scaler.joblib")
-    dossier = '../CASIA2.0/Au'
+    dossier = '../data/copy-move/images'
     bonnes_reponses, total_images = classifier_dossier(dossier, svm, scaler)
     taux_de_bonnes_reponses = bonnes_reponses / total_images if total_images > 0 else 0
     print(f"Taux de bonnes réponses : {taux_de_bonnes_reponses:.2f} ({bonnes_reponses}/{total_images})")
     """
-    rap, pre, f1, jac = calculer_metriques_moyennes_dct(4)
+    rap, pre, f1, jac = calculer_metriques_moyennes_dct(32)
     print("Rappel : " + str(rap),"Precision : " + str(pre), "F1 : " + str(f1), "Jaccard :" + str(jac))
-
 
 # Ancien code, peut-être encore utile
 

@@ -8,7 +8,7 @@ from detection import copy_move_detection, detection_dct, creer_masque_dct, dete
 class Application(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Détecteur de falsification d'images")
+        self.title("Pixel Patrol")
         self.geometry("2048x1152")
         ctk.set_appearance_mode("Dark")
         self.image_path = None
@@ -43,19 +43,15 @@ class Application(ctk.CTk):
         self.canvas_frame.pack(side='left', padx=(20, 20), pady=(20, 20), fill='both', expand=True)
 
         # Canvas pour l'image originale
-        self.label_image_falsifiee = ctk.CTkLabel(self.canvas_frame, text="Image falsifiée")
         self.canvas_image = ctk.CTkCanvas(self.canvas_frame, width=400, height=400)
 
         # Canvas pour l'image avec correspondances
-        self.label_image_correspondance = ctk.CTkLabel(self.canvas_frame, text="Image des points clés SIFT")
         self.canvas_image_detectee = ctk.CTkCanvas(self.canvas_frame, width=400, height=400)
         
         # Canvas pour l'image avec masques
-        self.label_masque = ctk.CTkLabel(self.canvas_frame, text="Masque détecté")
         self.canvas_masque = ctk.CTkCanvas(self.canvas_frame, width=400, height=400)
 
         # Cavas pour l'image du masque de vérité
-        self.label_masque_verite = ctk.CTkLabel(self.canvas_frame, text="Masque de vérité")
         self.canvas_masque_verite = ctk.CTkCanvas(self.canvas_frame, width=400, height=400)
 
         # Ajout d'un menu déroulant pour le choix du mode de détection
@@ -96,9 +92,13 @@ class Application(ctk.CTk):
 
         if mode == "DCT":
             self.canvas_image.pack(side='left', padx=(20, 20), pady=(20, 20))
+            self.canvas_image.create_text(200, 20, text="Image falsifiée", font=("Arial", 12), fill="white")
             self.canvas_image_detectee.pack(side='left', padx=(20, 20), pady=(20, 20))
+            self.canvas_image_detectee.create_text(200, 20, text="Image détectée", font=("Arial", 12), fill="white")
             self.canvas_masque.pack(side='left', padx=(20, 20), pady=(20, 20))
+            self.canvas_masque.create_text(200, 20, text="Masque prédit", font=("Arial", 12), fill="white")
             self.canvas_masque_verite.pack(side='left', padx=(20, 20), pady=(20, 20))
+            self.canvas_masque_verite.create_text(200, 20, text="Masque de vérité", font=("Arial", 12), fill="white")
             self.label_taille_bloc.pack(pady=(20, 2))
             self.slider_taille_bloc.pack(pady=(0, 20))
             self.btn_sift.pack_forget()
@@ -106,14 +106,14 @@ class Application(ctk.CTk):
             self.btn_dct.pack(pady=(10, 10))
             
         elif mode == "SIFT":
-            #self.label_image_falsifiee.pack(padx=(20, 20), pady=(10, 2))
             self.canvas_image.pack(side='left', padx=(20, 20), pady=(20, 20))
-            #self.label_image_correspondance.pack(padx=(20, 20), pady=(10, 2))
+            self.canvas_image.create_text(200, 20, text="Image falsifiée", font=("Arial", 12), fill="white")
             self.canvas_image_detectee.pack(side='left', padx=(20, 20), pady=(20, 20))
-            #self.label_masque.pack(padx=(20, 20), pady=(10, 2))
+            self.canvas_image_detectee.create_text(200, 20, text="Image des points clés SIFT", font=("Arial", 12), fill="white")
             self.canvas_masque.pack(side='left', padx=(20, 20), pady=(20, 20))
-            #self.label_masque_verite.pack(padx=(20, 20), pady=(10, 2))
+            self.canvas_masque.create_text(200, 20, text="Masque prédit", font=("Arial", 12), fill="white")
             self.canvas_masque_verite.pack(side='left', padx=(20, 20), pady=(20, 20))
+            self.canvas_masque_verite.create_text(200, 20, text="Masque de vérité", font=("Arial", 12), fill="white")
             self.btn_dct.pack_forget()
             self.slider_taille_bloc.pack_forget()
             self.label_taille_bloc.pack_forget()
@@ -128,7 +128,8 @@ class Application(ctk.CTk):
             self.slider_taille_bloc.pack_forget()
             self.label_taille_bloc.pack_forget()
             self.btn_sift.pack_forget()
-            self.canvas_image.pack(side='left', padx=(20, 20), pady=(20, 20))
+            self.canvas_image.pack(side='top', expand=True)
+            self.canvas_image.create_text(200, 20, text="Image", font=("Arial", 12), fill="white")
             self.button_classification.pack(pady=(10, 10))
 
     def update_taille_bloc(self, value):
@@ -167,13 +168,13 @@ class Application(ctk.CTk):
                 self.afficher_image(chemin_masque_verite, self.canvas_masque_verite)
                 rappel,precision,f1,jaccard = calculer_metriques(chemin_masque_verite, image_masque_path)
                 self.label_accuracy.pack(pady=(10, 5))
-                self.label_accuracy.configure(text=f"Précision : {precision}")
+                self.label_accuracy.configure(text="Précision : {:.1f}%".format(precision*100))
                 self.label_recall.pack(pady=(5, 5))
-                self.label_recall.configure(text=f"Rappel : {rappel}")
+                self.label_recall.configure(text="Rappel : {:.1f}%".format(rappel*100))
                 self.label_f1_score.pack(pady=(5, 5))
-                self.label_f1_score.configure(text=f"F1-score : {f1}")
+                self.label_f1_score.configure(text="F1-score : {:.1f}%".format(f1*100))
                 self.label_jaccard.pack(pady=(5, 10))
-                self.label_jaccard.configure(text=f"Indice de Jaccard : {jaccard}")
+                self.label_jaccard.configure(text="Indice de Jaccard : {:.1f}%".format(jaccard*100))
             else:
                 print(f"Le masque de vérité correspondant à {nom_base} n'existe pas.")
                 self.canvas_masque_verite.delete("all")
@@ -195,13 +196,13 @@ class Application(ctk.CTk):
                     self.afficher_image(chemin_masque_verite, self.canvas_masque_verite)
                     rappel,precision,f1,jaccard = calculer_metriques(chemin_masque_verite, image_masque_path)
                     self.label_accuracy.pack(pady=(10, 5))
-                    self.label_accuracy.configure(text=f"Précision : {precision}")
+                    self.label_accuracy.configure(text="Précision : {:.1f}%".format(precision*100))
                     self.label_recall.pack(pady=(5, 5))
-                    self.label_recall.configure(text=f"Rappel : {rappel}")
+                    self.label_recall.configure(text="Rappel : {:.1f}%".format(rappel*100))
                     self.label_f1_score.pack(pady=(5, 5))
-                    self.label_f1_score.configure(text=f"F1-score : {f1}")
+                    self.label_f1_score.configure(text="F1-score : {:.1f}%".format(f1*100))
                     self.label_jaccard.pack(pady=(5, 10))
-                    self.label_jaccard.configure(text=f"Indice de Jaccard : {jaccard}")
+                    self.label_jaccard.configure(text="Indice de Jaccard : {:.1f}%".format(jaccard*100))
                 else:
                     print(f"Le masque de vérité correspondant à {nom_base} n'existe pas.")
                     self.canvas_masque_verite.delete("all")

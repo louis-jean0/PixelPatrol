@@ -82,7 +82,9 @@ if np.isnan(X_train).any():
     X_train = X_train[mask]
     Y_train = Y_train[mask]
 
+
 # Entraînement du SVM
+"""
 param_grid = {
     'C': [2**i for i in range(-5, 5)],
     'gamma': [2**i for i in range(-5, 5)]
@@ -93,12 +95,15 @@ grid_search.fit(X_train, Y_train)
 print("Meilleurs paramètres:", grid_search.best_params_)
 print("Meilleure précision obtenue:", grid_search.best_score_)
 best_model = grid_search.best_estimator_
+"""
+svm = SVC(kernel="rbf", gamma="scale")
+svm.fit(X_train, Y_train)
 
 # Prédiction et évaluation
-Y_pred = best_model.predict(X_test)
+Y_pred = svm.predict(X_test)
 print(confusion_matrix(Y_test, Y_pred))
 print(classification_report(Y_test, Y_pred))
 
 # Sauvegarde du modèle
-dump(best_model, "svm.joblib")
+dump(svm, "svm.joblib")
 dump(scaler, "scaler.joblib")
