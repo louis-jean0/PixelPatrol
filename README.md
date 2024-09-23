@@ -40,6 +40,14 @@ Pour plus d'informations sur le projet et les implémentations, veuillez consult
 
 ## Installation
 
+### Cloner le dépôt
+
+Clonez le projet à l'aide de cette commande :
+
+```bash
+git clone git@github.com:louis-jean0/PixelPatrol.git
+```
+
 Pour exécuter ce projet, vous aurez besoin de Python 3 et de `pip` installés sur votre système. Il est recommandé d'utiliser un environnement virtuel pour gérer les dépendances.
 
 ### Configuration de l'environnement virtuel
