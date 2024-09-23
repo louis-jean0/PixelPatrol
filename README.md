@@ -1,8 +1,42 @@
-# Pixel Patrol - Détecteur de falsifications d'images
 
-## Projet étudiant reliant les UE HAI804I Analyse et traitement des images et HAI809I Codage et compression multimédia 
+<div align="center">
+  <img src="screens/pixelpatrol.png" width="400"/>
+</div>
 
-Pixel Patrol est une solution Python de détection de falsifications dans des images, utilisant des technologies  d'analyse d'images pour identifier les modifications et manipulations d'images. Notre objectif est de fournir un outil fiable pour aider à maintenir l'intégrité et la véracité des contenus visuels.
+## Détecteur de falsifications d'images
+
+**Pixel Patrol** est une solution Python de détection de falsifications dans des images, utilisant des technologies d'analyse d'images pour identifier les modifications et manipulations d'images. Mon objectif est de fournir un outil fiable pour aider à maintenir l'intégrité et la véracité des contenus visuels. **Pixel Patrol** utilise **CustomTKinter**, **PIL**, **scikit-learn** et **OpenCV**. 
+
+Pour plus d'informations sur le projet et les implémentations, veuillez consulter mon [support de soutenance orale](CRs/PixelPatrolOral.pdf).
+
+<div align="center">
+  <img src="screens/interface_sift.jpg" width="512" height="288"/>
+  <img src="screens/interface.jpg" width="512" height="288"/>
+</div>
+
+**Pixel Patrol** implémente la détection de falsifications par copy-move et par splicing. L'application propose aussi une détection de falsifications plus générale, en utilisant un SVM.
+
+## Détection de copy-move (méthode SIFT et RANSAC)
+
+<div align="center">
+  <img src="screens/059_F.png" width="250"/>
+  <img src="screens/59sift.png" width="250"/>
+  <img src="screens/masque59sift.png" width="250"/>
+</div>
+
+## Détection de splicing (méthode DCT)
+
+<div align="center">
+  <img src="screens/im30_edit6.jpg" width="250"/>
+  <img src="screens/image_detection_dct.png" width="250"/>
+  <img src="screens/masque_dct.png" width="250"/>
+</div>
+
+## Détection de falsification générale (méthode SVM)
+
+<div align="center">
+  <img src="screens/svm.jpg"/>
+</div>
 
 ## Installation
 
@@ -42,14 +76,19 @@ pip install -r requirements.txt
 python3 src/app.py
 ```
 
-La fenêtre de l'application devrait s'ouvrir. Vous pouvez y charger une image, lancer la détection de falsification et visualiser l'image résultante après traitement.
+La fenêtre de l'application devrait s'ouvrir. Vous pouvez y choisir le mode de détection, charger une image, lancer la détection de falsification et visualiser l'image résultante après traitement.
 
 ## Structure du projet
 
 - `src/` : contient les scripts source de l'application.
     - `app.py` : implémentation de l'interface graphique
     - `detection.py` : logique de détection de falsification dans une image
-    - `test.pgm` : contient la dernière image générée par le programme
+    - `svm.py` : contient les scripts pour entraîner le SVM
 - `CRs` : contient les compte-rendus qui détaillent les avancements du projet
+- `data` : contient des images à utiliser dans l'application
 - `.gitignore` : répertorie les fichiers et dossiers à ignorer lors des ajouts sur le git
 - `requirements.txt` : regroupe les dépendances nécessaires à l'utilisation du projet
+
+## Auteurs
+
+- JEAN Louis

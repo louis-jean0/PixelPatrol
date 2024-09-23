@@ -80,7 +80,7 @@ def copy_move_detection(image_path):
     # Création d'un masque noir de la même taille que l'image originale
     masque_falsifications = np.zeros_like(image)
     
-    # Pour chaque paire d'inliers, copier les zones de l'image originale vers le masque noir
+    # Pour chaque paire d'inliers, on copie les zones de l'image originale vers le masque noir
     taille_rect = 10  # Taille du demi-côté du rectangle
     for i in range(len(pts_src)):
         if inliers[i]: 
