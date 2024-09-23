@@ -10,8 +10,8 @@
 Pour plus d'informations sur le projet et les implémentations, veuillez consulter mon [support de soutenance orale](CRs/PixelPatrolOral.pdf).
 
 <div align="center">
-  <img src="screens/interface_sift.jpg" width="512" height="288"/>
-  <img src="screens/interface.jpg" width="512" height="288"/>
+  <img src="screens/interface_sift.jpg"/>
+  <img src="screens/interface.jpg"/>
 </div>
 
 **Pixel Patrol** implémente la détection de falsifications par copy-move et par splicing. L'application propose aussi une détection de falsifications plus générale, en utilisant un SVM.
