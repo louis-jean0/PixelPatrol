@@ -1,22 +1,30 @@
+<div align="center">
+  <img src="https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white" alt="Python 3.10+"/>
+  <img src="https://img.shields.io/badge/OpenCV-contrib%204.9.0.80-5C3EE8?logo=opencv&logoColor=white" alt="OpenCV contrib 4.x"/>
+  <img src="https://img.shields.io/badge/scikit--learn-1.4.1-F7931E?logo=scikitlearn&logoColor=white" alt="scikit-learn 1.x"/>
+  <img src="https://img.shields.io/badge/Pillow-10.2.0-3776AB" alt="Pillow 10.2.0"/>
+  <img src="https://img.shields.io/badge/CustomTKinter-5.2.2-43B02A" alt="CustomTKinter 5.2.2"/>
+  <img src="https://img.shields.io/badge/License-MIT-green" alt="License MIT"/>
+</div>
 
 <div align="center">
   <img src="screens/pixelpatrol.png" width="400"/>
 </div>
 
-## Détecteur de falsifications d'images
+## Image tampering detector
 
-**Pixel Patrol** est une solution Python de détection de falsifications dans des images, utilisant des technologies d'analyse d'images pour identifier les modifications et manipulations d'images. Mon objectif est de fournir un outil fiable pour aider à maintenir l'intégrité et la véracité des contenus visuels. **Pixel Patrol** utilise **CustomTKinter**, **PIL**, **scikit-learn** et **OpenCV**. 
+**Pixel Patrol** is a Python solution for detecting tampering in images, using image analysis technologies to identify edits and manipulations. My goal is to provide a reliable tool to help maintain the integrity and truthfulness of visual content. **Pixel Patrol** uses **CustomTKinter**, **PIL**, **scikit-learn**, and **OpenCV**. This project was developed as part of the “Image Analysis and Processing” course in the IMAGINE master’s program (Université de Montpellier).
 
-Pour plus d'informations sur le projet et les implémentations, veuillez consulter mon [support de soutenance orale](CRs/PixelPatrolOral.pdf).
+For more information about the project and implementations, please refer to my [oral defense slides](CRs/PixelPatrolOral.pdf) (only available in French).
 
 <div align="center">
   <img src="screens/interface_sift.jpg"/>
   <img src="screens/interface.jpg"/>
 </div>
 
-**Pixel Patrol** implémente la détection de falsifications par copy-move et par splicing. L'application propose aussi une détection de falsifications plus générale, en utilisant un SVM.
+**Pixel Patrol** implements copy-move and splicing tampering detection. The application also provides a more general tampering detection using an SVM.
 
-## Détection de copy-move (méthode SIFT et RANSAC)
+## Copy-move detection (SIFT and RANSAC method)
 
 <div align="center">
   <img src="screens/059_F.png" width="250"/>
@@ -24,7 +32,7 @@ Pour plus d'informations sur le projet et les implémentations, veuillez consult
   <img src="screens/masque59sift.png" width="250"/>
 </div>
 
-## Détection de splicing (méthode DCT)
+## Splicing detection (DCT method)
 
 <div align="center">
   <img src="screens/im30_edit6.jpg" width="250"/>
@@ -32,7 +40,7 @@ Pour plus d'informations sur le projet et les implémentations, veuillez consult
   <img src="screens/masque_dct.png" width="250"/>
 </div>
 
-## Détection de falsification générale (méthode SVM)
+## General tampering detection (SVM method)
 
 <div align="center">
   <img src="screens/svm.jpg"/>
@@ -40,63 +48,67 @@ Pour plus d'informations sur le projet et les implémentations, veuillez consult
 
 ## Installation
 
-### Cloner le dépôt
+### Clone the repository
 
-Clonez le projet à l'aide de cette commande :
+Clone the project using this command:
 
 ```bash
 git clone git@github.com:louis-jean0/PixelPatrol.git
 ```
 
-Pour exécuter ce projet, vous aurez besoin de Python 3 et de `pip` installés sur votre système. Il est recommandé d'utiliser un environnement virtuel pour gérer les dépendances.
+To run this project, you will need Python 3 and `pip` installed on your system. It is recommended to use a virtual environment to manage dependencies.
 
-### Configuration de l'environnement virtuel
+### Virtual environment setup
 
-1. **Créer un environnement virtuel** :
-    ```sh
-    python3 -m venv pixel_patrol_env
-    ```
-    Cette commande crée un nouvel environnement virtuel nommé `pixel_patrol_env` dans le répertoire courant.
+1. Create a virtual environment:
+   ```bash
+   python3 -m venv pixel_patrol_env
+   ```
+   This command creates a new virtual environment named `pixel_patrol_env` in the current directory.
 
-2. **Activer l'environnement virtuel** :
-    - Sur Windows :
-      ```sh
-      .\pixel_patrol_env\Scripts\activate
-      ```
-    - Sur macOS et Linux :
-      ```sh
-      source pixel_patrol_env/bin/activate
-      ```
-    Une fois activé, votre invite de commande devrait vous avertir du changement d'environnement.
+2. Activate the virtual environment:
+   - On Windows:
+     ```bash
+     .\pixel_patrol_env\Scripts\activate
+     ```
+   - On macOS and Linux:
+     ```bash
+     source pixel_patrol_env/bin/activate
+     ```
+   Once activated, your command prompt should indicate the environment change.
 
-### Installation des dépendances
+### Install dependencies
 
-Avec l'environnement virtuel activé, installez les dépendances nécessaires à l'aide de `pip` :
+With the virtual environment activated, install the required dependencies using `pip`:
 
-```sh
+```bash
 pip install -r requirements.txt
 ```
 
-## Utilisation
+## Usage
 
-**Lancer le programme** :
-```sh
+Launch the program:
+```bash
 python3 src/app.py
 ```
 
-La fenêtre de l'application devrait s'ouvrir. Vous pouvez y choisir le mode de détection, charger une image, lancer la détection de falsification et visualiser l'image résultante après traitement.
+The application window should open. You can choose the detection mode, load an image, run tampering detection, and visualize the resulting processed image.
 
-## Structure du projet
+## Project structure
 
-- `src/` : contient les scripts source de l'application.
-    - `app.py` : implémentation de l'interface graphique
-    - `detection.py` : logique de détection de falsification dans une image
-    - `svm.py` : contient les scripts pour entraîner le SVM
-- `CRs` : contient les compte-rendus qui détaillent les avancements du projet
-- `data` : contient des images à utiliser dans l'application
-- `.gitignore` : répertorie les fichiers et dossiers à ignorer lors des ajouts sur le git
-- `requirements.txt` : regroupe les dépendances nécessaires à l'utilisation du projet
+- `src/`: contains the application's source scripts.
+  - `app.py`: GUI implementation
+  - `detection.py`: image tampering detection logic
+  - `svm.py`: scripts to train the SVM
+- `CRs`: contains reports detailing the project's progress (only in French)
+- `data`: contains images to use in the application
+- `.gitignore`: lists files and folders to ignore when committing to git
+- `requirements.txt`: groups the dependencies required to use the project
 
-## Auteurs
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Author
 
 - JEAN Louis
